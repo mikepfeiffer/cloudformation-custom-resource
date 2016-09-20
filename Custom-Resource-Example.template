@@ -1,0 +1,186 @@
+{
+    "AWSTemplateFormatVersion" : "2010-09-09",
+    "Description"              : "Dynamic AWS CloudFormation Template for Amazon Linux or Windows: Gets the most recent HVM-based Amazon Linux or Windows 2012 R2 AMI ID via AWS Lambda.",
+    "Parameters"               : {
+        "KeyPairName" : {
+            "Description" : "Public/private key pairs allow you to securely connect to your instance after it launches",
+            "Type"        : "AWS::EC2::KeyPair::KeyName"
+        },
+        "InstanceType" : {
+            "Description" : "EC2 Instance Type",
+            "Type"        : "String",
+            "Default"     : "t2.micro",
+            "AllowedValues" : [
+                "t1.micro",
+                "t2.micro",
+                "t2.small",
+                "t2.medium"
+            ],
+            "ConstraintDescription" : "Must be a valid EC2 instance type."
+        },
+        "OSType"       : {
+            "Description" : "Select Operating System",
+            "Type"        : "String",
+            "Default"     : "Amazon Linux",
+            "AllowedValues" : [
+                "Amazon Linux",
+                "Windows Server 2012 R2"
+            ]
+        },
+        "ModuleName"   : {
+            "Description" : "The name of the JavaScript file",
+            "Type"        : "String",
+            "Default"     : "amilookup"
+        },
+        "S3Bucket"     : {
+            "Description" : "The name of the bucket that contains your packaged source",
+            "Type"        : "String"
+        },
+        "S3Key"        : {
+            "Description" : "The name of the ZIP package",
+            "Type"        : "String",
+            "Default"     : "amilookup.zip"
+        }
+    },
+    "Conditions"               : {
+        "IsLinux" : {
+            "Fn::Equals" : [
+                {
+                    "Ref" : "OSType"
+                },
+                "Amazon Linux"
+            ]
+        }
+    },
+    "Resources"                : {
+        "EC2Instance" : {
+            "Type" : "AWS::EC2::Instance",
+            "Properties" : {
+                "InstanceType" : {
+                    "Ref" : "InstanceType"
+                },
+                "ImageId"      : {
+                    "Fn::GetAtt" : [
+                        "AMIInfo",
+                        "Id"
+                    ]
+                },
+                "KeyName"      : {
+                    "Ref" : "KeyPairName"
+                }
+            }
+        },
+        "AMIInfo"     : {
+            "Type" : "Custom::AMIInfo",
+            "Properties" : {
+                "ServiceToken" : {
+                    "Fn::GetAtt" : [
+                        "AMIInfoFunction",
+                        "Arn"
+                    ]
+                },
+                "Region"       : {
+                    "Ref" : "AWS::Region"
+                },
+                "OSType"       : {
+                    "Fn::If" : [
+                        "IsLinux",
+                        "amzn-ami-hvm*.x86_64-gp2",
+                        "Windows_Server-2012-R2_RTM-English-64Bit-Base-*"
+                    ]
+                }
+            }
+        },
+        "AMIInfoFunction" : {
+            "Type" : "AWS::Lambda::Function",
+            "Properties" : {
+                "Code" : {
+                    "S3Bucket" : {
+                        "Ref" : "S3Bucket"
+                    },
+                    "S3Key"    : {
+                        "Ref" : "S3Key"
+                    }
+                },
+                "Handler" : {
+                    "Fn::Join" : [
+                        "",
+                        [
+                            {
+                                "Ref" : "ModuleName"
+                            },
+                            ".handler"
+                        ]
+                    ]
+                },
+                "Role"    : {
+                    "Fn::GetAtt" : [
+                        "LambdaExecutionRole",
+                        "Arn"
+                    ]
+                },
+                "Runtime" : "nodejs",
+                "Timeout" : "30"
+            }
+        },
+        "LambdaExecutionRole" : {
+            "Type" : "AWS::IAM::Role",
+            "Properties" : {
+                "AssumeRolePolicyDocument" : {
+                    "Version" : "2012-10-17",
+                    "Statement" : [
+                        {
+                            "Effect" : "Allow",
+                            "Principal" : {
+                                "Service" : [
+                                    "lambda.amazonaws.com"
+                                ]
+                            },
+                            "Action"    : [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path"                     : "/",
+                "Policies"                 : [
+                    {
+                        "PolicyName" : "root",
+                        "PolicyDocument" : {
+                            "Version" : "2012-10-17",
+                            "Statement" : [
+                                {
+                                    "Effect" : "Allow",
+                                    "Action" : [
+                                        "logs:CreateLogGroup",
+                                        "logs:CreateLogStream",
+                                        "logs:PutLogEvents"
+                                    ],
+                                    "Resource" : "arn:aws:logs:*:*:*"
+                                },
+                                {
+                                    "Effect" : "Allow",
+                                    "Action" : [
+                                        "ec2:DescribeImages"
+                                    ],
+                                    "Resource" : "*"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    },
+    "Outputs"                  : {
+        "AMIID" : {
+            "Description" : "The Amazon EC2 instance AMI ID.",
+            "Value"       : {
+                "Fn::GetAtt" : [
+                    "AMIInfo",
+                    "Id"
+                ]
+            }
+        }
+    }
+}
