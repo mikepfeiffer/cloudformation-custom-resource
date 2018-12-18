@@ -119,7 +119,7 @@
                         "Arn"
                     ]
                 },
-                "Runtime" : "nodejs",
+                "Runtime" : "nodejs6.10",
                 "Timeout" : "30"
             }
         },
