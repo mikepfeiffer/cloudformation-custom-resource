@@ -120,7 +120,7 @@
                     ]
                 },
                 "Runtime" : "nodejs6.10",
-                "Timeout" : "30"
+                "Timeout" : "60"
             }
         },
         "LambdaExecutionRole" : {
